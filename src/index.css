@@ -97,6 +97,18 @@
     box-shadow: var(--shadow-card);
   }
 
+  /* Dropdown specific fixes */
+  [data-radix-popper-content-wrapper] {
+    z-index: 100 !important;
+  }
+  
+  [data-radix-select-content] {
+    background: hsl(var(--card)) !important;
+    backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--border));
+    z-index: 100 !important;
+  }
+
   /* Neon glow effects */
   .glow-primary {
     box-shadow: var(--glow-primary);

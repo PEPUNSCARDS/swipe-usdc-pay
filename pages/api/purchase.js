@@ -1,13 +1,9 @@
-import { NextRequest } from 'next/server';
-
-export const runtime = 'edge';
-
 const PEYFLEX_API_KEY = 'f304ee6fec16077c05ea82ebca89d39b6d575ac8';
 const PEYFLEX_BASE_URL = 'https://client.peyflex.com.ng';
 const SONIC_RPC = 'https://rpc.soniclabs.com';
 
 // Verify transaction on Sonic blockchain
-async function verifyTransaction(txHash: string): Promise<boolean> {
+async function verifyTransaction(txHash) {
   try {
     const response = await fetch(SONIC_RPC, {
       method: 'POST',
@@ -38,7 +34,7 @@ async function verifyTransaction(txHash: string): Promise<boolean> {
 }
 
 // Call Peyflex API
-async function callPeyflexAPI(service: string, details: any) {
+async function callPeyflexAPI(service, details) {
   const endpoints = {
     airtime: '/api/airtime/subscribe/',
     data: '/api/data/subscribe/',
@@ -46,7 +42,7 @@ async function callPeyflexAPI(service: string, details: any) {
     electricity: '/api/electricity/subscribe/',
   };
 
-  const endpoint = endpoints[service as keyof typeof endpoints];
+  const endpoint = endpoints[service];
   if (!endpoint) {
     throw new Error(`Invalid service: ${service}`);
   }
@@ -68,28 +64,26 @@ async function callPeyflexAPI(service: string, details: any) {
   return await response.json();
 }
 
-export default async function handler(req: NextRequest) {
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { 
-        status: 405,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { service, details, txHash } = await req.json();
+    const { service, details, txHash } = req.body;
 
     if (!service || !details || !txHash) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      return res.status(400).json({ error: 'Missing required parameters' });
     }
 
     // Verify the transaction first
@@ -97,47 +91,29 @@ export default async function handler(req: NextRequest) {
     const isValidTransaction = await verifyTransaction(txHash);
     
     if (!isValidTransaction) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Transaction not confirmed or failed',
-          txHash 
-        }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      return res.status(400).json({ 
+        error: 'Transaction not confirmed or failed',
+        txHash 
+      });
     }
 
     // Transaction verified, now call Peyflex API
     console.log('Transaction verified, calling Peyflex API for:', service);
     const result = await callPeyflexAPI(service, details);
 
-    return new Response(
-      JSON.stringify({ 
-        status: 'success',
-        data: result,
-        txHash,
-        timestamp: new Date().toISOString()
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return res.status(200).json({ 
+      status: 'success',
+      data: result,
+      txHash,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Purchase processing error:', error);
     
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Service purchase failed',
-        timestamp: new Date().toISOString()
-      }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return res.status(500).json({ 
+      error: error.message || 'Service purchase failed',
+      timestamp: new Date().toISOString()
+    });
   }
 }

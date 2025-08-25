@@ -1,32 +1,25 @@
-import { NextRequest } from 'next/server';
-
-export const runtime = 'edge';
-
 const PEYFLEX_API_KEY = 'f304ee6fec16077c05ea82ebca89d39b6d575ac8';
 const PEYFLEX_BASE_URL = 'https://client.peyflex.com.ng';
 
-export default async function handler(req: NextRequest) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { 
-        status: 405,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
   }
 
-  const url = new URL(req.url);
-  const network = url.searchParams.get('network');
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { network } = req.query;
 
   if (!network) {
-    return new Response(
-      JSON.stringify({ error: 'Network parameter is required' }),
-      { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return res.status(400).json({ error: 'Network parameter is required' });
   }
 
   try {
@@ -67,50 +60,26 @@ export default async function handler(req: NextRequest) {
         ],
       };
 
-      return new Response(
-        JSON.stringify({
-          plans: fallbackPlans[network as keyof typeof fallbackPlans] || []
-        }),
-        {
-          status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'Cache-Control': 'public, max-age=3600'
-          }
-        }
-      );
+      return res.status(200).json({
+        plans: fallbackPlans[network] || []
+      });
     }
 
     const data = await response.json();
     
-    return new Response(
-      JSON.stringify(data),
-      {
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=3600'
-        }
-      }
-    );
+    // Set cache headers
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    
+    return res.status(200).json(data);
 
   } catch (error) {
     console.error('Data plans fetch error:', error);
     
-    return new Response(
-      JSON.stringify({
-        plans: [
-          { code: 'default-1gb', name: '1GB Plan', amount: '500' },
-          { code: 'default-5gb', name: '5GB Plan', amount: '2500' },
-        ]
-      }),
-      { 
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=3600'
-        }
-      }
-    );
+    return res.status(200).json({
+      plans: [
+        { code: 'default-1gb', name: '1GB Plan', amount: '500' },
+        { code: 'default-5gb', name: '5GB Plan', amount: '2500' },
+      ]
+    });
   }
 }
